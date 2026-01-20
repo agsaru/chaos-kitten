@@ -1,0 +1,109 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "chaos-kitten"
+version = "0.1.0"
+description = "An agentic AI security testing tool that intelligently finds vulnerabilities in APIs"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Md Haaris Hussain", email = "mdhaarishussain@gmail.com" },
+]
+keywords = [
+    "security",
+    "api-testing",
+    "vulnerability-scanner",
+    "ai",
+    "llm",
+    "penetration-testing",
+    "owasp",
+    "cloud-native",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security",
+    "Topic :: Software Development :: Testing",
+]
+dependencies = [
+    "httpx>=0.25.0",
+    "pyyaml>=6.0",
+    "pydantic>=2.0",
+    "rich>=13.0",
+    "typer>=0.9.0",
+    "jinja2>=3.0",
+    "anthropic>=0.18.0",
+    "openai>=1.0.0",
+    "langgraph>=0.0.20",
+    "prance>=23.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+    "pre-commit>=3.0",
+]
+browser = [
+    "playwright>=1.40",
+]
+
+[project.scripts]
+chaos-kitten = "chaos_kitten.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/mdhaarishussain/chaos-kitten"
+Documentation = "https://github.com/mdhaarishussain/chaos-kitten#readme"
+Repository = "https://github.com/mdhaarishussain/chaos-kitten.git"
+Issues = "https://github.com/mdhaarishussain/chaos-kitten/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["chaos_kitten"]
+
+[tool.black]
+line-length = 88
+target-version = ["py310", "py311", "py312"]
+
+[tool.ruff]
+line-length = 88
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # Pyflakes
+    "I",   # isort
+    "C4",  # flake8-comprehensions
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+]
+
+[tool.ruff.isort]
+known-first-party = ["chaos_kitten"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-v --cov=chaos_kitten --cov-report=term-missing"
