@@ -35,9 +35,7 @@ jobs:
 
       - name: 📦 Install Chaos Kitten
         run: |
-          pip install chaos-kitten
-          # Or install from source:
-          # pip install -e .
+          pip install -e .
 
       - name: 🚀 Start Demo API (if testing demo)
         run: |
@@ -131,7 +129,7 @@ jobs:
           python-version: '3.11'
           
       - name: 📦 Install Chaos Kitten
-        run: pip install chaos-kitten
+        run: pip install -e .
         
       - name: 🐱 Run Full Scan
         run: |
