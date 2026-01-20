@@ -3,7 +3,7 @@
 </p>
 
 <h1 align="center">
-  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=700&size=28&pause=1000&color=A855F7&center=true&vCenter=true&width=500&lines=Chaos+Kitten+%F0%9F%90%B1;Breaking+code+before+hackers+do;AI-Powered+Security+Testing" alt="Typing SVG" />
+  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=700&size=28&pause=1000&color=A855F7&center=true&vCenter=true&width=600&lines=Chaos+Kitten+%F0%9F%90%B1;Breaking+code+before+hackers+do;AI-Powered+Security+Testing" alt="Typing SVG" />
 </h1>
 
 <p align="center">
@@ -422,6 +422,10 @@ MIT License - see [LICENSE](LICENSE) for details.
   <em>"Breaking your code before hackers do"</em>
   <br><br>
   Made with 💜 by the Chaos Kitten Team
+  <br>
+  A project under the <b>Last Neuron Umbrella</b>
+  <br>
+  <i>(By the makers of <a href="https://bondhu.tech">Bondhu</a>)</i>
 </p>
 
 <p align="center">
