@@ -31,16 +31,87 @@ outputs:
     description: 'Path to the generated HTML report'
 
 runs:
-  using: 'docker'
-  image: 'Dockerfile'
-  env:
-    OPENAI_API_KEY: ${{ env.OPENAI_API_KEY }}
-    ANTHROPIC_API_KEY: ${{ env.ANTHROPIC_API_KEY }}
-    SEVERITY_THRESHOLD: ${{ inputs.severity-threshold }}
-  args:
-    - --target
-    - ${{ inputs.target-url }}
-    - --spec
-    - ${{ inputs.openapi-spec }}
-    - --provider
-    - ${{ inputs.llm-provider }}
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Checkout Chaos Kitten
+      uses: actions/checkout@v4
+      with:
+        repository: 'Apertre/chaos-kitten'
+        ref: 'main'
+        path: 'chaos-kitten-tool'
+        clean: false
+
+    - name: Install dependencies
+      shell: bash
+      run: |
+        if [ -f "pyproject.toml" ] && grep -q "chaos-kitten" "pyproject.toml"; then
+          echo "Detected Chaos Kitten in current workspace. Installing local version..."
+          pip install .
+        elif [ -d "chaos-kitten-tool" ]; then
+          echo "Installing Chaos Kitten from Action repo..."
+          pip install ./chaos-kitten-tool
+        else
+          echo "Installing Chaos Kitten from PyPI/Git..."
+          pip install git+https://github.com/Apertre/chaos-kitten.git@main
+        fi
+
+    - name: Create reports directory
+      shell: bash
+      run: mkdir -p ./reports
+
+    - name: Run Chaos Kitten Scan
+      shell: bash
+      env:
+        OPENAI_API_KEY: ${{ env.OPENAI_API_KEY }}
+        ANTHROPIC_API_KEY: ${{ env.ANTHROPIC_API_KEY }}
+        SEVERITY_THRESHOLD: ${{ inputs.severity-threshold }}
+      run: |
+        echo "::group::Security Scan"
+        chaos-kitten scan \
+          --target "${{ inputs.target-url }}" \
+          --spec "${{ inputs.openapi-spec }}" \
+          --provider "${{ inputs.llm-provider }}" \
+          --format sarif \
+          --output ./reports
+        
+        # Set outputs
+        if [ -f "./reports/results.sarif" ]; then
+            echo "sarif-file=$(pwd)/reports/results.sarif" >> $GITHUB_OUTPUT
+        fi
+
+        if [ -f "./reports/results.html" ]; then
+            echo "report-file=$(pwd)/reports/results.html" >> $GITHUB_OUTPUT
+        fi
+        echo "::endgroup::"
+
+    - name: Process Results
+      shell: bash
+      env:
+        SEVERITY_THRESHOLD: ${{ inputs.severity-threshold }}
+      run: |
+        echo "::group::Results Analysis"
+        # We need to find the sarif-converter.py
+        # If running from checkout
+        if [ -f "chaos-kitten-tool/.github/actions/chaos-kitten/sarif-converter.py" ]; then
+           CONVERTER="chaos-kitten-tool/.github/actions/chaos-kitten/sarif-converter.py"
+        elif [ -f ".github/actions/chaos-kitten/sarif-converter.py" ]; then
+           CONVERTER=".github/actions/chaos-kitten/sarif-converter.py"
+        else
+           echo "::error::Could not find sarif-converter.py"
+           exit 1
+        fi
+        
+        python3 "$CONVERTER" ./reports "${SEVERITY_THRESHOLD:-high}"
+        EXIT_CODE=$?
+        
+        if [ -f "scan-summary.md" ] && [ -n "$GITHUB_STEP_SUMMARY" ]; then
+            cat scan-summary.md >> "$GITHUB_STEP_SUMMARY"
+        fi
+        
+        echo "::endgroup::"
+        exit $EXIT_CODE
