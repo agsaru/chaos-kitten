@@ -93,20 +93,10 @@ runs:
       shell: bash
       env:
         SEVERITY_THRESHOLD: ${{ inputs.severity-threshold }}
+        CONVERTER_PATH: ${{ github.action_path }}/sarif-converter.py
       run: |
         echo "::group::Results Analysis"
-        # We need to find the sarif-converter.py
-        # If running from checkout
-        if [ -f "chaos-kitten-tool/.github/actions/chaos-kitten/sarif-converter.py" ]; then
-           CONVERTER="chaos-kitten-tool/.github/actions/chaos-kitten/sarif-converter.py"
-        elif [ -f ".github/actions/chaos-kitten/sarif-converter.py" ]; then
-           CONVERTER=".github/actions/chaos-kitten/sarif-converter.py"
-        else
-           echo "::error::Could not find sarif-converter.py"
-           exit 1
-        fi
-        
-        python3 "$CONVERTER" ./reports "${SEVERITY_THRESHOLD:-high}"
+        python3 "$CONVERTER_PATH" ./reports "${SEVERITY_THRESHOLD:-high}"
         EXIT_CODE=$?
         
         if [ -f "scan-summary.md" ] && [ -n "$GITHUB_STEP_SUMMARY" ]; then
