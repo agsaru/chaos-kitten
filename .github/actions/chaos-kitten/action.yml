@@ -1,0 +1,46 @@
+name: 'Chaos Kitten Security Scan'
+description: 'AI-powered API security testing with Chaos Kitten'
+author: 'mdhaarishussain'
+
+inputs:
+  target-url:
+    description: 'Base URL of the API to test'
+    required: true
+  openapi-spec:
+    description: 'Path to OpenAPI specification file'
+    required: true
+  severity-threshold:
+    description: 'Minimum severity to fail (critical, high, medium, low)'
+    required: false
+    default: 'high'
+  llm-provider:
+    description: 'LLM provider to use (openai, anthropic, ollama)'
+    required: false
+    default: 'openai'
+  recursion-limit:
+    description: 'Maximum recursion depth for the scanner'
+    required: false
+    default: '10'
+
+outputs:
+  vulnerabilities-found:
+    description: 'Total number of vulnerabilities found'
+  sarif-file:
+    description: 'Path to the generated SARIF report'
+  report-file:
+    description: 'Path to the generated HTML report'
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  env:
+    OPENAI_API_KEY: ${{ env.OPENAI_API_KEY }}
+    ANTHROPIC_API_KEY: ${{ env.ANTHROPIC_API_KEY }}
+    SEVERITY_THRESHOLD: ${{ inputs.severity-threshold }}
+  args:
+    - --target
+    - ${{ inputs.target-url }}
+    - --spec
+    - ${{ inputs.openapi-spec }}
+    - --provider
+    - ${{ inputs.llm-provider }}
