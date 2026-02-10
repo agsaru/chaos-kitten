@@ -110,14 +110,22 @@ Chaos Kitten reads provider credentials from environment variables.
 
 For a starter file you can copy into a local `.env`, see `.env.example` in the repo root.
 
-- `ANTHROPIC_API_KEY`
-- `OPENAI_API_KEY`
+Most contributors will set *one* cloud LLM provider key:
+
+- `ANTHROPIC_API_KEY` (Anthropic)
+- `OPENAI_API_KEY` (OpenAI)
 
 If you use a remote LLM provider (Anthropic/OpenAI), set the corresponding API key. Some scan modes and configurations require a valid key, while demo/heuristic modes may run with reduced capabilities. For the most accurate behavior, trust `chaos-kitten scan --help` and the CLI output over this document.
 
 The config loader also expands `${VARNAME}` syntax inside `chaos-kitten.yaml` (see `chaos_kitten/utils/config.py`).
 
-Note: The CLI does not automatically load a `.env` file. If you prefer `.env`, load it into your shell (for example via `direnv`, your IDE, or your task runner).
+Note: The CLI does not automatically load a `.env` file. If you prefer `.env`, load it into your shell (for example via `direnv`, your IDE, or your task runner). For a quick local shell setup:
+
+```bash
+set -a
+source .env
+set +a
+```
 
 The canonical list of dependencies and dev tooling is in `pyproject.toml`.
 
@@ -519,7 +527,7 @@ ruff check .
 mypy chaos_kitten
 ```
 
-Depending on the current CI configuration, some or all of these tools may run in GitHub Actions. Regardless, please run them locally before submitting a PR to avoid avoidable review back-and-forth.
+These tools (`black`, `ruff`, `mypy`, `pytest`) are the standard quality checks for this repo. Depending on the current CI configuration, some or all of them may also run in GitHub Actions, but you should run them locally before submitting a PR to avoid avoidable review back-and-forth.
 
 Before opening a PR, run:
 
