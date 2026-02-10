@@ -46,9 +46,7 @@ A scan typically looks like this:
 5. The Brain analyzes responses and turns them into findings.
 6. The Litterbox generates a report (HTML/Markdown/JSON/SARIF).
 
-In current versions, orchestration is implemented in `chaos_kitten/brain/orchestrator.py` (use `rg Orchestrator` if your tree differs).
-
-Implementation details (file names, module paths, and internal wiring) are provided as examples; always verify against your current checkout.
+Orchestration is implemented in `chaos_kitten/brain/orchestrator.py`.
 
 ASCII view of the runtime modules:
 
@@ -148,7 +146,7 @@ If the scan completes and writes a report under `./reports`, your environment is
 
 ## Project structure walkthrough
 
-The paths below match the current source tree. If something looks different in your checkout, trust the repo and use the file browser or `rg` to find the latest location.
+The paths below match the current source tree.
 
 ### `chaos_kitten/` (library + CLI)
 
@@ -215,7 +213,7 @@ chaos-kitten scan \
   --format html
 ```
 
-Report formats currently supported by the reporter are:
+Report formats supported by the reporter (see `chaos-kitten scan --help` or `chaos_kitten/litterbox/reporter.py` for the authoritative list) are:
 
 - `html`
 - `markdown`
@@ -230,11 +228,34 @@ If you need to invoke Chaos Kitten programmatically instead of via the CLI, see 
 
 This section is intended primarily for core maintainers and advanced experiments.
 
-Chaos Kitten is importable as a Python library. The most direct entrypoint today is the Brain `Orchestrator`.
+### Preferred: invoke the CLI (stable)
 
-Note: This is an internal API example intended for advanced usage. Breaking changes may occur between releases. Do not rely on these interfaces for production integrations. For stable behavior, prefer the CLI (`chaos-kitten scan`).
+Chaos Kitten is CLI-first. For most automation, invoke the CLI from your code:
 
-**Stability:** These are internal building blocks intended primarily for core development and advanced experimentation. If you embed them in external automation, pin a specific Chaos Kitten version and expect breaking changes between minor releases without prior deprecation.
+```python
+import subprocess
+
+subprocess.run(
+    [
+        "chaos-kitten",
+        "scan",
+        "--demo",
+        "--format",
+        "json",
+        "--output",
+        "./reports",
+    ],
+    check=True,
+)
+```
+
+### Maintainer-only: Orchestrator (unstable)
+
+Use this only when working on Chaos Kitten internals.
+
+Chaos Kitten is importable as a Python library. One internal entrypoint used by the CLI is the Brain `Orchestrator`.
+
+**Warning:** The imports and return structures in the examples below are internal and may change between releases without deprecation. Do not rely on these interfaces for production integrations. For stable integrations, prefer invoking scans via the CLI (`chaos-kitten scan`). If you embed internals in automation, pin a specific Chaos Kitten version.
 
 Preferred (mirrors the CLI): reuse YAML config loading logic. This assumes a `Config` helper similar to the current `chaos_kitten.utils.config.Config`; adjust the import/usage to match your checkout if it differs.
 
@@ -278,7 +299,15 @@ Notes for extenders:
 
 Attack profiles live in `toys/*.yaml`. Each file describes:
 
-Always open an existing profile in `toys/` and mirror its structure; the template below illustrates the concepts but may omit newer required fields.
+- metadata (`name`, `category`, `severity`, `description`)
+- which input fields to target (`target_fields`)
+- payloads to try (`payloads`)
+- what “success” looks like (`success_indicators`)
+- remediation guidance (`remediation`)
+
+How `target_fields` are matched (query params vs JSON body fields vs headers) depends on the current `AttackPlanner` implementation. Typically they are matched by parameter name or JSON path; check `chaos_kitten/brain/attack_planner.py` for authoritative behavior.
+
+Always open an existing profile in `toys/` and mirror its structure; the template below illustrates the concepts but may omit newer required fields. For a concrete example, start with `toys/sql_injection_basic.yaml`.
 
 **Important:** Adding a YAML file under `toys/` by itself may not change scan behavior. Profiles are loaded/selected according to the current `AttackPlanner` implementation (and may require analyzer support in `ResponseAnalyzer`) before they affect scans.
 
@@ -289,11 +318,9 @@ A common end-to-end change looks like:
 3. Update `ResponseAnalyzer` (or a dedicated analyzer) so it can recognize the vulnerability.
 4. Add unit tests that cover planner selection and analyzer behavior.
 
-- metadata (`name`, `category`, `severity`, `description`)
-- which input fields to target (`target_fields`)
-- payloads to try (`payloads`)
-- what “success” looks like (`success_indicators`)
-- remediation guidance (`remediation`)
+**Common required fields (based on existing profiles):** `name`, `category`, `severity`, `payloads`, `success_indicators`, `remediation`.
+
+**Common optional fields:** `description`, `target_fields`, `references`, `cat_message`, plus any future analyzer-specific metadata.
 
 ### Minimal profile template
 
@@ -341,15 +368,14 @@ In this example, the payloads use a literal CRLF sequence (`"\\r\\n"`) and its U
 
 ### How profiles are used in code
 
-At the time of writing, profiles are wired into planning behavior via `AttackPlanner`. Adding a YAML file under `toys/` is necessary, but actually using it in scans depends on how `AttackPlanner` loads and selects profiles—check `chaos_kitten/brain/attack_planner.py` for the latest behavior.
+Current behavior (see `chaos_kitten/brain/attack_planner.py`):
 
-The long-term intention is for `chaos_kitten/brain/attack_planner.py` to:
+- `AttackPlanner.load_attack_profiles()` is currently a no-op (YAML profiles are not loaded automatically).
+- `AttackPlanner.plan_attacks()` is currently a simple heuristic stub.
 
-1. load YAML profiles from `toys/`
-2. match profiles to endpoints/fields
-3. produce planned attacks (payload + target) for the executor
+To make a new YAML profile affect scans, implement loading/selection in `AttackPlanner` and ensure analysis logic recognizes the vulnerability.
 
-When you add a new YAML profile today, you will usually also want to:
+When you add a new YAML profile, you will usually also want to:
 
 - update `AttackPlanner` to load and select it
 - update `ResponseAnalyzer` to recognize the vulnerability (or implement a new analyzer)
@@ -372,26 +398,25 @@ There isn't a dedicated profile schema validator yet. For now:
 
 The shared payload library lives at `toys/data/naughty_strings.json`.
 
+Current behavior: this file is not loaded automatically by the planner/analyzers yet. If you want new payloads or categories here to affect scans, wire it into `AttackPlanner` (and/or analyzers) and add tests.
+
 File shape (simplified example; inspect `toys/data/naughty_strings.json` in your checkout for the current structure):
 
 The snippet below is only a highly simplified sketch and is not a schema. The actual file may contain additional metadata, fields, or categories. Always open `toys/data/naughty_strings.json` in your checkout and mirror the real structure there.
 
 ```json
 {
-  "name": "Naughty Strings",
-  "description": "...",
-  "version": "1.0.0",
   "categories": {
     "sql_injection": ["..."],
     "xss": ["..."],
-    "path_traversal": ["..."],
-    "...": ["..."]
-  },
-  "notes": ["..."]
+    "path_traversal": ["..."]
+  }
 }
 ```
 
 To see real-world examples, open `toys/data/naughty_strings.json` and look at an existing category like `xss` or `sql_injection`, then mirror that structure when adding your own payloads.
+
+When extending the dataset, treat the `categories` map as the primary payload structure; other top-level fields (like `name`/`description`/`version`) are informational metadata.
 
 ### Adding a new payload
 
@@ -436,9 +461,9 @@ LLM-driven planning is under active development. Today, the scan loop is primari
 - HTTP execution (Executor)
 - response heuristics (ResponseAnalyzer)
 
-**Current behavior:** At the time of writing, the main scan loop is typically driven by built-in heuristics in `AttackPlanner.plan_attacks`. Always check the current `chaos_kitten/brain` implementation for the source of truth.
+**Current behavior:** At the time of writing, the main scan loop is typically driven by built-in heuristics in `AttackPlanner.plan_attacks`. The `agent` settings in `chaos-kitten.yaml` are not yet fully wired into planning.
 
-**Future direction:** LLM-based planning is being wired in behind the `agent` config block and may become enabled by default in future versions. See [`docs/architecture.md`](./architecture.md) for up-to-date design notes.
+**Experimental work:** LLM-based planning is being wired in behind the `agent` config block. See [`docs/architecture.md`](./architecture.md) for up-to-date design notes.
 
 That said, contributors frequently work on LLM integration in `AttackPlanner` and/or the LangGraph workflow.
 
@@ -491,6 +516,8 @@ black .
 ruff check .
 mypy chaos_kitten
 ```
+
+CI runs these same tools (`black`, `ruff`, `mypy`, `pytest`); please run them locally before submitting a PR to avoid avoidable CI failures.
 
 Before opening a PR, run:
 
@@ -567,6 +594,12 @@ cd examples/demo_api
 python -m pip install -r requirements.txt
 python app.py
 ```
+
+### New attack profile or payload not taking effect
+
+- Verify your YAML/JSON parses (see the validation commands earlier in this guide).
+- Check `AttackPlanner` selection logic and `ResponseAnalyzer` behavior to confirm your new category/profile is referenced.
+- Add or run unit tests that explicitly load your new profile and assert it is selected for at least one endpoint.
 
 ### Playwright issues
 
