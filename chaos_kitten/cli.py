@@ -37,7 +37,7 @@ target:
   base_url: "http://localhost:3000"
   openapi_spec: "./openapi.json"
   auth:
-    type: "bearer"  # bearer, basic, oauth, none
+    type: "bearer"  # bearer, basic, none
     token: "${API_TOKEN}"
 
 agent:

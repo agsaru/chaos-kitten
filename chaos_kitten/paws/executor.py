@@ -29,12 +29,19 @@ class Executor:
         
         Args:
             base_url: Base URL of the target API
-            auth_type: Authentication type (bearer, basic, oauth, none)
+            auth_type: Authentication type (bearer, basic, none)
             auth_token: Authentication token/credentials
             rate_limit: Maximum requests per second
             timeout: Request timeout in seconds
+        
+        Raises:
+            ValueError: If auth_type is not supported.
         """
         self.base_url = base_url.rstrip("/")
+        
+        if auth_type not in ["bearer", "basic", "none"]:
+            raise ValueError(f"Unsupported auth_type: {auth_type}. Supported types: bearer, basic, none")
+            
         self.auth_type = auth_type
         self.auth_token = auth_token
         self.rate_limit = rate_limit
