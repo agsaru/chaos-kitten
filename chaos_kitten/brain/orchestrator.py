@@ -2,10 +2,17 @@
 
 import logging
 import asyncio
+from functools import partial
 from typing import Any, TypedDict, List, Literal
 from langgraph.graph import START, StateGraph, END
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, MofNCompleteColumn
+from rich.progress import (
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    BarColumn,
+    MofNCompleteColumn,
+)
 
 # Internal Chaos Kitten imports
 from chaos_kitten.brain.openapi_parser import OpenAPIParser
@@ -17,6 +24,7 @@ from chaos_kitten.brain.response_analyzer import ResponseAnalyzer
 logger = logging.getLogger(__name__)
 console = Console()
 
+
 class AgentState(TypedDict):
     spec_path: str
     base_url: str
@@ -25,39 +33,39 @@ class AgentState(TypedDict):
     planned_attacks: List[dict]
     results: List[dict]
     findings: List[dict]
-    executor: Executor
 
 
 def parse_openapi(state: AgentState) -> dict:
     try:
-       parser = OpenAPIParser(state["spec_path"])
-       parser.parse()
-       endpoints = parser.get_endpoints()
+        parser = OpenAPIParser(state["spec_path"])
+        parser.parse()
+        endpoints = parser.get_endpoints()
     except Exception as e:
-       logger.error(f"Failed to parse OpenAPI spec: {e}")
-       raise
+        logger.exception("Failed to parse OpenAPI spec")
+        raise
     return {"endpoints": endpoints, "current_endpoint": 0}
+
 
 def plan_attacks(state: AgentState) -> dict:
     idx = state["current_endpoint"]
     if idx >= len(state["endpoints"]):
         return {"planned_attacks": []}
-    
+
     endpoint = state["endpoints"][idx]
     planner = AttackPlanner([endpoint])
     return {"planned_attacks": planner.plan_attacks(endpoint)}
 
-async def execute_and_analyze(state: AgentState) -> dict:
+
+async def execute_and_analyze(state: AgentState, executor: Executor) -> dict:
     idx = state["current_endpoint"]
     if idx >= len(state["endpoints"]):
-       return {"findings": state["findings"], "current_endpoint": idx}
-     
+        return {"findings": state["findings"], "current_endpoint": idx}
+
     endpoint = state["endpoints"][idx]
-    executor = state["executor"]
     analyzer = ResponseAnalyzer()
-    
+
     new_findings = []
-    
+
     for attack in state["planned_attacks"]:
         try:
             result = await executor.execute_attack(
@@ -66,72 +74,86 @@ async def execute_and_analyze(state: AgentState) -> dict:
                 payload=attack.get("payload"),
             )
         except Exception:
-            logger.exception("Attack execution failed for %s %s", endpoint.get("method"), endpoint.get("path"))
+            logger.exception(
+                "Attack execution failed for %s %s",
+                endpoint.get("method"),
+                endpoint.get("path"),
+            )
             continue
-        
+
         finding = analyzer.analyze(
             response_body=result.get("response_body", ""),
             status_code=result.get("status_code", 0),
             response_time_ms=result.get("duration", 0),
+            payload_used=attack.get("payload", ""),
             endpoint=f"{endpoint.get('method')} {endpoint.get('path')}",
         )
-        
+
         if finding:
             severity_value = getattr(finding.severity, "value", finding.severity)
-            new_findings.append({
-                "type": finding.vulnerability_type,
-                "severity": severity_value,
-                "endpoint": finding.endpoint,
-                "evidence": finding.evidence,
-            })
+            new_findings.append(
+                {
+                    "type": finding.vulnerability_type,
+                    "severity": severity_value,
+                    "endpoint": finding.endpoint,
+                    "evidence": finding.evidence,
+                }
+            )
 
-    return {
-        "findings": state["findings"] + new_findings,
-        "current_endpoint": idx + 1
-    }
+    return {"findings": state["findings"] + new_findings, "current_endpoint": idx + 1}
+
 
 def should_continue(state: AgentState) -> Literal["plan", "end"]:
     if state["current_endpoint"] < len(state["endpoints"]):
         return "plan"
     return "end"
 
+
 class Orchestrator:
     def __init__(self, config: dict[str, Any]) -> None:
         self.config = config
 
-    def _build_graph(self):
+    def _build_graph(self, executor: Executor):
         workflow = StateGraph(AgentState)
 
         workflow.add_node("parse", parse_openapi)
         workflow.add_node("plan", plan_attacks)
-        workflow.add_node("execute_analyze", execute_and_analyze)
+        workflow.add_node("execute_analyze", partial(execute_and_analyze, executor=executor))
 
         workflow.add_edge(START, "parse")
         workflow.add_edge("parse", "plan")
         workflow.add_edge("plan", "execute_analyze")
-        
-        workflow.add_conditional_edges("execute_analyze",should_continue,{"plan": "plan","end": END})
+
+        workflow.add_conditional_edges("execute_analyze", should_continue, {"plan": "plan", "end": END})
         return workflow.compile()
 
     async def run(self) -> dict[str, Any]:
         console.print("[bold green]🧠 Chaos Kitten Brain Initializing...[/bold green]")
-        
+
         api_config = self.config.get("api")
-        spec_path = (api_config.get("spec_path") if isinstance(api_config, dict) else None) or self.config.get("spec")
+        target_config = self.config.get("target")
+
         spec_path = (
             (api_config.get("spec_path") if isinstance(api_config, dict) else None)
             or self.config.get("spec")
-            or (target_config.get("openapi_spec") if isinstance(target_config, dict) else None)
+            or (
+                target_config.get("openapi_spec")
+                if isinstance(target_config, dict)
+                else None
+            )
         )
-        target_config = self.config.get("target")
-        target_url = (target_config.get("base_url") if isinstance(target_config, dict) else target_config) or None
+        target_url = (
+            target_config.get("base_url")
+            if isinstance(target_config, dict)
+            else target_config
+        ) or None
 
         missing_keys = []
         if not spec_path:
             missing_keys.append("api.spec_path/spec")
         if not target_url:
             missing_keys.append("target.base_url/target")
-        
+
         if missing_keys:
             raise ValueError(
                 f"Missing required configuration: {', '.join(missing_keys)}. "
@@ -145,7 +167,7 @@ class Orchestrator:
             MofNCompleteColumn(),
             console=console,
         ) as progress:
-            
+
             scan_task = progress.add_task("[cyan]Scanning endpoints...", total=None)
 
             async with Executor(base_url=target_url) as executor:
@@ -157,40 +179,42 @@ class Orchestrator:
                     "planned_attacks": [],
                     "results": [],
                     "findings": [],
-                    "executor": executor,
                 }
 
-                app = self._build_graph()
-                
+                app = self._build_graph(executor)
+
                 final_state = initial_state
                 async for output in app.astream(initial_state):
                     for node_name, state_update in output.items():
                         final_state.update(state_update)
-                        
+
                         if "endpoints" in state_update:
-                            progress.update(scan_task, total=len(state_update["endpoints"]))
+                            progress.update(
+                                scan_task, total=len(state_update["endpoints"])
+                            )
                         if node_name == "execute_analyze":
                             progress.advance(scan_task)
 
         reporter_cfg = self.config.get("reporting", {})
         reporter = Reporter(
             output_path=reporter_cfg.get("output_path", "./reports"),
-            output_format=reporter_cfg.get("format", "html")
+            output_format=reporter_cfg.get("format", "html"),
         )
-        
+
         report_file = reporter.generate(
-            {"vulnerabilities": final_state["findings"]}, 
-            target_url
+            {"vulnerabilities": final_state["findings"]}, target_url
         )
 
         console.print("\n[bold green]Scan Complete![/bold green]")
-        console.print(f"[bold cyan] Report generated:[/bold cyan] [underline]{report_file}[/underline]")
-        
+        console.print(
+            f"[bold cyan] Report generated:[/bold cyan] [underline]{report_file}[/underline]"
+        )
+
         return {
             "vulnerabilities": final_state["findings"],
             "summary": {
                 "total_endpoints": len(final_state["endpoints"]),
                 "tested_endpoints": final_state["current_endpoint"],
-                "vulnerabilities_found": len(final_state["findings"])
-            }
+                "vulnerabilities_found": len(final_state["findings"]),
+            },
         }
