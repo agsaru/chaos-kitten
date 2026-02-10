@@ -108,6 +108,8 @@ python -m playwright install
 
 Chaos Kitten reads provider credentials from environment variables.
 
+For a starter file you can copy into a local `.env`, see `.env.example` in the repo root.
+
 - `ANTHROPIC_API_KEY`
 - `OPENAI_API_KEY`
 
@@ -517,7 +519,7 @@ ruff check .
 mypy chaos_kitten
 ```
 
-CI runs these same tools (`black`, `ruff`, `mypy`, `pytest`); please run them locally before submitting a PR to avoid avoidable CI failures.
+Depending on the current CI configuration, some or all of these tools may run in GitHub Actions. Regardless, please run them locally before submitting a PR to avoid avoidable review back-and-forth.
 
 Before opening a PR, run:
 
