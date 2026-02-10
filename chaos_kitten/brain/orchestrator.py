@@ -88,7 +88,7 @@ async def execute_and_analyze(state: AgentState, executor: Executor) -> dict:
         finding = analyzer.analyze(
             response_body=result.get("response_body", ""),
             status_code=result.get("status_code", 0),
-            response_time_ms=result.get("duration", 0),
+            response_time_ms=result.get("elapsed_ms", 0),
             payload_used=attack.get("payload", ""),
             endpoint=f"{endpoint.get('method')} {endpoint.get('path')}",
         )
@@ -114,6 +114,14 @@ def should_continue(state: AgentState) -> Literal["plan", "end"]:
 
 
 class Orchestrator:
+    """
+    This class uses LangGraph to create an agentic workflow that:
+    1. Parses the OpenAPI spec
+    2. Plans attack strategies
+    3. Executes attacks
+    4. Analyzes results
+    5. Generates reports
+    """
     def __init__(self, config: dict[str, Any]) -> None:
         self.config = config
 
@@ -122,13 +130,17 @@ class Orchestrator:
 
         workflow.add_node("parse", parse_openapi)
         workflow.add_node("plan", plan_attacks)
-        workflow.add_node("execute_analyze", partial(execute_and_analyze, executor=executor))
+        workflow.add_node(
+            "execute_analyze", partial(execute_and_analyze, executor=executor)
+        )
 
         workflow.add_edge(START, "parse")
         workflow.add_edge("parse", "plan")
         workflow.add_edge("plan", "execute_analyze")
 
-        workflow.add_conditional_edges("execute_analyze", should_continue, {"plan": "plan", "end": END})
+        workflow.add_conditional_edges(
+            "execute_analyze", should_continue, {"plan": "plan", "end": END}
+        )
         return workflow.compile()
 
     async def run(self) -> dict[str, Any]:
