@@ -9,8 +9,13 @@ If you're new to the repo, skim the README first. For deeper dives, start with:
 - [`docs/architecture.md`](./architecture.md) (how the runtime fits together)
 - [`CONTRIBUTING.md`](../CONTRIBUTING.md) and [`docs/contributing_guide.md`](./contributing_guide.md) (contribution workflow)
 
+This guide describes the current codebase at a high level. Internal module names and file locations may change over time; when in doubt, prefer your local file tree and `rg`/IDE search over hard-coded paths.
+
+**Note:** File names, optional dependency extras, and internal wiring may change between releases. Treat any paths and module names in this guide as examples, and confirm against your local checkout.
+
 ## Table of contents
 
+- [Quickstart for contributors](#quickstart-for-contributors)
 - [System architecture overview](#system-architecture-overview)
 - [Local development setup](#local-development-setup)
 - [Project structure walkthrough](#project-structure-walkthrough)
@@ -22,9 +27,17 @@ If you're new to the repo, skim the README first. For deeper dives, start with:
 - [Code style and testing expectations](#code-style-and-testing-expectations)
 - [Common troubleshooting](#common-troubleshooting)
 
+## Quickstart for contributors
+
+1. Clone the repo and create a virtualenv.
+2. Install dev dependencies (`python -m pip install -e '.[dev]'`).
+3. Run `pytest` to ensure your environment is healthy.
+4. Start the demo API (`examples/demo_api`) and run a demo scan (see [Verify your setup](#verify-your-setup-optional-smoke-test)).
+5. Make a small change and follow the PR workflow in [`CONTRIBUTING.md`](../CONTRIBUTING.md).
+
 ## System architecture overview
 
-At a high level, a scan looks like this:
+A scan typically looks like this:
 
 1. The CLI loads a config and builds a runtime configuration.
 2. The Brain parses your OpenAPI/Swagger spec into a list of endpoints.
@@ -33,16 +46,23 @@ At a high level, a scan looks like this:
 5. The Brain analyzes responses and turns them into findings.
 6. The Litterbox generates a report (HTML/Markdown/JSON/SARIF).
 
+In current versions, orchestration is implemented in `chaos_kitten/brain/orchestrator.py` (use `rg Orchestrator` if your tree differs).
+
+Implementation details (file names, module paths, and internal wiring) are provided as examples; always verify against your current checkout.
+
 ASCII view of the runtime modules:
 
 ```
-chaos-kitten
-  ├─ chaos_kitten/brain/      # parsing, planning, orchestration, analysis
-  ├─ chaos_kitten/paws/       # HTTP + browser execution
-  ├─ chaos_kitten/litterbox/  # report generation
-  ├─ toys/                   # YAML/JSON attack content
-  └─ tests/                  # pytest
+repo root
+  ├─ chaos_kitten/            # core Python package
+  │   ├─ brain/               # parsing, planning, orchestration, analysis
+  │   ├─ paws/                # HTTP + browser execution
+  │   └─ litterbox/           # report generation
+  ├─ toys/                    # YAML/JSON attack content
+  └─ tests/                   # pytest
 ```
+
+This tree is illustrative; see [`docs/architecture.md`](./architecture.md) for the canonical and up-to-date project layout.
 
 For more detail (including a fuller diagram and data flow), see [`docs/architecture.md`](./architecture.md).
 
@@ -60,6 +80,10 @@ Optional:
 - Playwright (only needed for browser-based validation; current browser automation is still an extension point)
 
 ### Clone and install
+
+On current `main`, development dependencies are installed via the `dev` extra. If you hit an extras-related error, open `pyproject.toml` and use the extras defined under `[project.optional-dependencies]`.
+
+**Note:** The examples `.[dev]` and `.[dev,browser]` must match extras actually defined in your `pyproject.toml`.
 
 ```bash
 git clone https://github.com/mdhaarishussain/chaos-kitten.git
@@ -89,6 +113,8 @@ Chaos Kitten reads provider credentials from environment variables.
 - `ANTHROPIC_API_KEY`
 - `OPENAI_API_KEY`
 
+If you use a remote LLM provider (Anthropic/OpenAI), set the corresponding API key. Some scan modes and configurations require a valid key, while demo/heuristic modes may run with reduced capabilities. For the most accurate behavior, trust `chaos-kitten scan --help` and the CLI output over this document.
+
 The config loader also expands `${VARNAME}` syntax inside `chaos-kitten.yaml` (see `chaos_kitten/utils/config.py`).
 
 Note: The CLI does not automatically load a `.env` file. If you prefer `.env`, load it into your shell (for example via `direnv`, your IDE, or your task runner).
@@ -100,6 +126,25 @@ The canonical list of dependencies and dev tooling is in `pyproject.toml`.
 ```bash
 pytest
 ```
+
+### Verify your setup (optional smoke test)
+
+1. Start the demo API (terminal 1):
+
+   ```bash
+   cd examples/demo_api
+   python -m pip install -r requirements.txt
+   python app.py
+   ```
+
+2. Run a demo scan (terminal 2, repo root):
+
+   ```bash
+   chaos-kitten version
+   chaos-kitten scan --demo --output ./reports --format json
+   ```
+
+If the scan completes and writes a report under `./reports`, your environment is ready.
 
 ## Project structure walkthrough
 
@@ -114,7 +159,7 @@ The paths below match the current source tree. If something looks different in y
   - Loads YAML config and expands `${ENV_VAR}` values.
 - `chaos_kitten/brain/`
   - `openapi_parser.py`: parses OpenAPI 3.x and Swagger 2.0 into a normalized list of endpoints.
-  - `orchestrator.py`: LangGraph-based scan loop (parse → plan → execute/analyze → report).
+  - `orchestrator.py`: coordinates the scan loop (parse → plan → execute/analyze → report); currently implemented with LangGraph (see [`docs/architecture.md`](./architecture.md) for details).
   - `attack_planner.py`: attack planning (currently rule-based; extension point for loading/selecting `toys/*.yaml`).
   - `response_analyzer.py`: heuristics/regex-based response analysis into typed findings.
 - `chaos_kitten/paws/`
@@ -179,11 +224,32 @@ Report formats currently supported by the reporter are:
 
 For the full contributor workflow (formatting, linting, type-checking, tests), see [Code style and testing expectations](#code-style-and-testing-expectations).
 
+If you need to invoke Chaos Kitten programmatically instead of via the CLI, see [Library usage (internal API)](#library-usage-internal-api).
+
 ## Library usage (internal API)
+
+This section is intended primarily for core maintainers and advanced experiments.
 
 Chaos Kitten is importable as a Python library. The most direct entrypoint today is the Brain `Orchestrator`.
 
-Note: This is an internal API example intended for advanced usage. Breaking changes may occur between releases. For stable behavior, prefer the CLI (`chaos-kitten scan`).
+Note: This is an internal API example intended for advanced usage. Breaking changes may occur between releases. Do not rely on these interfaces for production integrations. For stable behavior, prefer the CLI (`chaos-kitten scan`).
+
+**Stability:** These are internal building blocks intended primarily for core development and advanced experimentation. If you embed them in external automation, pin a specific Chaos Kitten version and expect breaking changes between minor releases without prior deprecation.
+
+Preferred (mirrors the CLI): reuse YAML config loading logic. This assumes a `Config` helper similar to the current `chaos_kitten.utils.config.Config`; adjust the import/usage to match your checkout if it differs.
+
+```python
+import asyncio
+
+from chaos_kitten.brain.orchestrator import Orchestrator
+from chaos_kitten.utils.config import Config
+
+config = Config("chaos-kitten.yaml").load()
+results = asyncio.run(Orchestrator(config).run())
+print(results["summary"])
+```
+
+For quick experiments, you can also construct a minimal config dict directly. This style is more likely to break across versions; prefer the YAML-based `Config` loader for anything beyond quick local experiments.
 
 ```python
 import asyncio
@@ -202,28 +268,26 @@ results = asyncio.run(Orchestrator(config).run())
 print(results["summary"])
 ```
 
-To reuse the same YAML config loading logic as the CLI:
-
-```python
-import asyncio
-
-from chaos_kitten.brain.orchestrator import Orchestrator
-from chaos_kitten.utils.config import Config
-
-config = Config("chaos-kitten.yaml").load()
-results = asyncio.run(Orchestrator(config).run())
-print(results["summary"])
-```
-
 Notes for extenders:
 
 - The library-level API is still evolving; treat imports like `Orchestrator` as internal building blocks rather than a stable public API.
-- `Orchestrator` currently instantiates `Executor(base_url=...)` without wiring auth/settings from config. If you're implementing auth, start by threading `target.auth.*` (and executor settings like timeouts/rate limits) into `Executor` construction.
-- Attack planning is currently rule-based in `AttackPlanner.plan_attacks`. YAML attack profiles in `toys/` are not auto-loaded during a scan yet.
+- When implementing auth, timeouts, or rate limiting, ensure `target.auth.*` and executor settings are threaded from config into `Executor` construction (see `chaos_kitten/brain/orchestrator.py` for current wiring).
+- Attack planning is currently rule-based in `AttackPlanner.plan_attacks`. Whether YAML attack profiles in `toys/` are auto-loaded depends on the current `AttackPlanner` implementation.
 
 ## Adding new attack profiles (YAML)
 
 Attack profiles live in `toys/*.yaml`. Each file describes:
+
+Always open an existing profile in `toys/` and mirror its structure; the template below illustrates the concepts but may omit newer required fields.
+
+**Important:** Adding a YAML file under `toys/` by itself may not change scan behavior. Profiles are loaded/selected according to the current `AttackPlanner` implementation (and may require analyzer support in `ResponseAnalyzer`) before they affect scans.
+
+A common end-to-end change looks like:
+
+1. Add `toys/my_profile.yaml`.
+2. Update `AttackPlanner` to load/select the profile (for example by category or endpoint metadata).
+3. Update `ResponseAnalyzer` (or a dedicated analyzer) so it can recognize the vulnerability.
+4. Add unit tests that cover planner selection and analyzer behavior.
 
 - metadata (`name`, `category`, `severity`, `description`)
 - which input fields to target (`target_fields`)
@@ -262,6 +326,8 @@ remediation: |
   constructed using safe framework APIs.
 ```
 
+In this example, the payloads use a literal CRLF sequence (`"\\r\\n"`) and its URL-encoded form (`"%0d%0a"`) to attempt to inject a new HTTP header (`X-Test`).
+
 ### Conventions and best practices
 
 1. Keep payloads safe by default.
@@ -275,7 +341,7 @@ remediation: |
 
 ### How profiles are used in code
 
-As of v0.1.0, profiles are not auto-loaded from `toys/` during a scan. Adding a YAML file is the first step, but wiring it into planning/analysis is still manual. Check `chaos_kitten/brain/attack_planner.py` for the latest behavior.
+At the time of writing, profiles are wired into planning behavior via `AttackPlanner`. Adding a YAML file under `toys/` is necessary, but actually using it in scans depends on how `AttackPlanner` loads and selects profiles—check `chaos_kitten/brain/attack_planner.py` for the latest behavior.
 
 The long-term intention is for `chaos_kitten/brain/attack_planner.py` to:
 
@@ -288,11 +354,27 @@ When you add a new YAML profile today, you will usually also want to:
 - update `AttackPlanner` to load and select it
 - update `ResponseAnalyzer` to recognize the vulnerability (or implement a new analyzer)
 
+After adding or changing a profile, add or update tests under `tests/` (for example, planner selection logic or response analysis) so the behavior stays verifiable over time.
+
+### Validation and testing
+
+There isn't a dedicated profile schema validator yet. For now:
+
+1. Make sure the YAML parses:
+
+   ```bash
+   python -c 'import yaml; yaml.safe_load(open("toys/sql_injection_basic.yaml"))'
+   ```
+
+2. Add or update a unit test that loads your new YAML file and asserts required keys exist (`name`, `category`, `severity`, `payloads`, `success_indicators`, `remediation`).
+
 ## Adding payloads to `naughty_strings.json`
 
 The shared payload library lives at `toys/data/naughty_strings.json`.
 
-File shape:
+File shape (simplified example; inspect `toys/data/naughty_strings.json` in your checkout for the current structure):
+
+The snippet below is only a highly simplified sketch and is not a schema. The actual file may contain additional metadata, fields, or categories. Always open `toys/data/naughty_strings.json` in your checkout and mirror the real structure there.
 
 ```json
 {
@@ -309,6 +391,8 @@ File shape:
 }
 ```
 
+To see real-world examples, open `toys/data/naughty_strings.json` and look at an existing category like `xss` or `sql_injection`, then mirror that structure when adding your own payloads.
+
 ### Adding a new payload
 
 1. Choose the right category under `categories`.
@@ -318,7 +402,11 @@ File shape:
 3. Keep entries focused.
    - A payload should test one idea; prefer multiple small payloads over one mega-string.
 
+Adding a new category here does not automatically make the planner or analyzers use it. If the new category should drive attack selection, update the relevant logic under `chaos_kitten/brain` and add tests under `tests/`.
+
 Example patch (adding a CRLF payload):
+
+This diff is a conceptual example; in your tree you may need to create the `header_injection` category or use a different existing category name to match the real file.
 
 ```diff
 diff --git a/toys/data/naughty_strings.json b/toys/data/naughty_strings.json
@@ -337,6 +425,8 @@ After editing, validate the JSON (this catches missing commas and escaping error
 python -m json.tool toys/data/naughty_strings.json > /dev/null
 ```
 
+If a new payload category changes planner selection or analyzer behavior, add/update tests under `tests/` to cover the new behavior.
+
 ## LLM debugging tips
 
 LLM-driven planning is under active development. Today, the scan loop is primarily:
@@ -346,7 +436,25 @@ LLM-driven planning is under active development. Today, the scan loop is primari
 - HTTP execution (Executor)
 - response heuristics (ResponseAnalyzer)
 
+**Current behavior:** At the time of writing, the main scan loop is typically driven by built-in heuristics in `AttackPlanner.plan_attacks`. Always check the current `chaos_kitten/brain` implementation for the source of truth.
+
+**Future direction:** LLM-based planning is being wired in behind the `agent` config block and may become enabled by default in future versions. See [`docs/architecture.md`](./architecture.md) for up-to-date design notes.
+
 That said, contributors frequently work on LLM integration in `AttackPlanner` and/or the LangGraph workflow.
+
+LLM settings live under `agent` in `chaos-kitten.yaml` (see the template created by `chaos-kitten init`):
+
+Always check the config template produced by `chaos-kitten init` for the authoritative set of LLM-related keys, as names and behavior may change.
+
+```yaml
+agent:
+  llm_provider: "anthropic"  # e.g., anthropic, openai (check current docs/config)
+  model: "your-llm-model-name"  # replace with a model supported by your provider
+  temperature: 0
+  max_iterations: 4
+```
+
+For implementation details, see how config is loaded in `chaos_kitten/utils/config.py` and how planning/orchestration is implemented under `chaos_kitten/brain`. When in doubt, `rg agent\.llm_provider` is usually the fastest way to find the current wiring.
 
 Practical debugging tips:
 
@@ -373,6 +481,8 @@ Tooling is configured in `pyproject.toml`:
 - Mypy (`[tool.mypy]`) for type checking
 
 For the authoritative contributor checklist (and any future pre-commit/CI-only steps), see [`CONTRIBUTING.md`](../CONTRIBUTING.md) and [`docs/contributing_guide.md`](./contributing_guide.md).
+
+The commands below are a quick reference; if they ever diverge from the contribution docs, trust those docs and `pyproject.toml`.
 
 Recommended local commands:
 
@@ -405,8 +515,11 @@ When you change behavior:
 - prefer small, focused tests
 - use mocking for network calls (see `tests/test_brain.py`)
 - keep integration tests hermetic (the demo API is used for this in `tests/test_integration_scan.py`)
+- when you add or change attack profiles, payload categories, or planner/analyzer logic, add or update tests to cover the new behavior
 
 ## Common troubleshooting
+
+Some items below reference current module paths and dependencies. If something doesn't match your checkout, use your IDE or `rg` to find the current code path and adjust the commands accordingly.
 
 ### `chaos-kitten scan` exits because no API key is set
 
@@ -429,13 +542,13 @@ Common causes:
 - missing external `$ref` files
 - relative paths in `$ref` that don’t resolve from your current working directory
 
-Try:
+Example for the current tree (adjust the import path if necessary):
 
 ```bash
 python -c 'from chaos_kitten.brain.openapi_parser import OpenAPIParser; p=OpenAPIParser("examples/sample_openapi.json"); p.parse(); print(len(p.get_endpoints()))'
 ```
 
-Note: Internal module paths like `chaos_kitten.brain.openapi_parser` may change between versions. If this import fails, use your IDE or `rg OpenAPIParser` to find the current module.
+Note: Internal module paths like `chaos_kitten.brain.openapi_parser` may change between versions. If this command fails with an `ImportError`, use your IDE or `rg OpenAPIParser` to find the current module and update the import path.
 
 ### Report generation errors
 
