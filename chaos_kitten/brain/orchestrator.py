@@ -174,7 +174,7 @@ class Orchestrator:
             target_url
         )
 
-        console.print(f"\n[bold green]Scan Complete![/bold green]")
+        console.print("\n[bold green]Scan Complete![/bold green]")
         console.print(f"[bold cyan] Report generated:[/bold cyan] [underline]{report_file}[/underline]")
         
         return {
