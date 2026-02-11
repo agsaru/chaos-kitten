@@ -1,6 +1,6 @@
 """The Brain Orchestrator - Main agent logic using LangGraph."""
 
-from typing import Any
+from typing import Any, Dict
 
 
 class Orchestrator:
@@ -14,7 +14,7 @@ class Orchestrator:
     5. Generates reports
     """
     
-    def __init__(self, config: dict[str, Any]) -> None:
+    def __init__(self, config: Dict[str, Any]) -> None:
         """Initialize the orchestrator.
         
         Args:
@@ -24,7 +24,7 @@ class Orchestrator:
         # TODO: Initialize LLM client based on config
         # TODO: Set up LangGraph workflow
     
-    async def run(self) -> dict[str, Any]:
+    async def run(self) -> Dict[str, Any]:
         """Run the full security scan.
         
         Returns:
