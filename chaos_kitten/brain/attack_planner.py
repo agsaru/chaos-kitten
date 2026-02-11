@@ -143,7 +143,8 @@ class AttackPlanner:
                 targetable_fields.append({"name": p_name, "location": p_in, "type": p_type})
                 
         # 2. Check request body
-        request_body = endpoint.get("requestBody", {})
+        # 2. Check request body
+        request_body = endpoint.get("requestBody") or {}
         content = request_body.get("content", {})
         for content_type, media_type in content.items():
             schema = media_type.get("schema", {})
